@@ -15,6 +15,7 @@
                 "src/greedy.cpp",
                 "src/branch_bound.cpp",
                 "src/dataset.cpp",
+                "src/visualizer.cpp",
 
                 "-o",
                 "output/main.exe"
