@@ -13,7 +13,7 @@
                 "main.cpp",
 
                 "src/greedy.cpp",
-                "src/branch_bound.cpp",
+                "src/bnb.cpp",
                 "src/dataset.cpp",
                 "src/visualizer.cpp",
 

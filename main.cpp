@@ -1,7 +1,7 @@
 #include "include/common.hpp"
 #include "include/dataset.hpp"
 #include "include/greedy.hpp"
-#include "include/branch_bound.hpp"
+#include "include/bnb.hpp"
 #include "include/visualizer.hpp"
 
 int main() {
@@ -17,18 +17,23 @@ int main() {
     // Optional debug dataset
     data.print();
 
+    // =====================
     // GREEDY SCHEDULING
+    // =====================
     GreedyScheduler greedy;
+    auto GreedyStart = chrono::high_resolution_clock::now();
+    int greedyMakespan = greedy.solve(data);
+    auto GreedyEnd = chrono::high_resolution_clock::now();
 
-    int makespan = greedy.solve(data);
+    auto duration = chrono::duration_cast<chrono::microseconds>(GreedyEnd - GreedyStart);
 
-    cout << "\n=== GREEDY RESULT ===\n";
-    cout << "Makespan: " << makespan << endl;
-
-    // GANTT CHART OUTPUT
     GanttVisualizer vis;
 
     vis.print(greedy.getSchedule(), data.numMachines);
+    
+    cout << "\n=== GREEDY RESULT ===\n";
+    cout << "Makespan: " << greedyMakespan << endl;
+    cout << "Runtime: " << duration.count() << " ms\n" << endl;
 
     return 0;
 }

@@ -61,6 +61,4 @@ void GanttVisualizer::print(
     for (int m = 0; m < numMachines; m++) {
         cout << "M" << m << " idle: " << idleTime[m] << "\n";
     }
-
-    cout << "\n";
 }
