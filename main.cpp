@@ -3,13 +3,15 @@
 #include "include/greedy.hpp"
 #include "include/bnb.hpp"
 #include "include/visualizer.hpp"
+#include "include/benchmark.hpp"
 
 int main() {
 
     Dataset data;
+    string datasetName = "la16";
 
     // Load Dataset
-    if (!data.load("../datasets/la01.txt")) {
+    if (!data.load("../datasets/"+datasetName+".txt")) {
         cout << "Failed to load dataset\n";
         return 1;
     }
@@ -53,6 +55,20 @@ int main() {
     cout << "Nodes Pruned  : " << bnbResult.nodesPruned << endl;
     cout << "Status        : " << (bnbResult.isOptimal ? "Optimal" : "Best-so-far (limit reached)") << endl;
     cout << "Runtime       : " << bnbDuration.count() << " ms\n" << endl;
+
+    int optimum = getOptimum(datasetName);
+    double greedyGap = computeGap(greedyMakespan, optimum);
+    double bnbGap    = computeGap(bnbResult.bestMakespan, optimum);
+
+    cout << "=== OPTIMALITY GAP ===\n";
+    if (optimum > 0) {
+        cout << "Optimum  : " << optimum << endl;
+        cout << fixed << setprecision(2);
+        cout << "Greedy   : " << greedyGap << "%" << endl;
+        cout << "BnB      : " << bnbGap    << "%" << endl;
+    } else {
+        cout << "Optimum  : tidak diketahui untuk dataset ini\n";
+    }
 
     return 0;
 }

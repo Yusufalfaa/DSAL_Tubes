@@ -1,4 +1,4 @@
-# Job Shop Scheduling Optimization using Greedy Critical Path Priority and Branch and Bound
+# Job Shop Scheduling Optimization using Greedy MWR and Branch and Bound
 
 Nama  : Muhamad Yusuf Al Farizzi  
 NIM   : 2030212520052
@@ -15,54 +15,113 @@ Karena jumlah kemungkinan jadwal bertumbuh secara eksponensial terhadap jumlah *
 
 ## Tujuan Penelitian
 
-Penelitian ini bertujuan untuk:
-
-1. Mengimplementasikan algoritma **Greedy Critical Path Priority (Most Work Remaining)** sebagai pendekatan konstruktif untuk menghasilkan solusi scheduling secara cepat.
-2. Mengimplementasikan algoritma **Branch and Bound** sebagai metode *exact optimization* yang memanfaatkan teknik pruning untuk mengurangi ruang pencarian.
-3. Membandingkan performa kedua algoritma berdasarkan:
+1. Mengimplementasikan algoritma **Greedy Priority Scheduling based on Most Work Remaining (MWR)** sebagai pendekatan konstruktif untuk menghasilkan solusi scheduling secara cepat.
+2. Mengimplementasikan algoritma **Branch and Bound** dengan pendekatan *Best-First Search* dan *conflict-based branching* sebagai metode *exact optimization* yang memanfaatkan teknik pruning untuk mengurangi ruang pencarian.
+3. Menggunakan solusi greedy sebagai *initial upper bound* untuk Branch and Bound agar pruning lebih agresif sejak node pertama.
+4. Membandingkan performa kedua algoritma berdasarkan:
    - Makespan yang dihasilkan
    - Waktu komputasi (*runtime*)
-   - Jumlah state/node yang dieksplorasi
-   - Kualitas solusi terhadap nilai optimum benchmark
+   - Jumlah node yang dieksplorasi dan dipruning
+   - Kualitas solusi terhadap nilai optimum benchmark (*optimality gap*)
 
 ---
 
 ## Algoritma yang Digunakan
 
-### 1. Greedy Priority Scheduling based on Most Work Remaining (MWR)
+### 1. Greedy Priority Scheduling — Most Work Remaining (MWR)
 
-Algoritma Greedy membangun jadwal secara bertahap dengan memilih operasi yang berasal dari *job* dengan total waktu pekerjaan tersisa (*remaining work*) terbesar.
+Algoritma Greedy membangun jadwal secara bertahap dengan memilih operasi yang berasal dari *job* dengan total sisa waktu pekerjaan (*remaining work*) terbesar.
 
 Prioritas suatu *job* dihitung menggunakan:
 
 ```text
-Priority(Job_i) = Σ ProcessingTime yang belum dikerjakan
+Priority(Job_i) = Σ ProcessingTime operasi yang belum dikerjakan
 ```
 
-Pada setiap langkah, operasi yang siap dijadwalkan dan memiliki nilai prioritas terbesar akan dipilih terlebih dahulu.
+Pada setiap langkah, operasi yang siap dijadwalkan dan memiliki nilai prioritas terbesar akan dipilih terlebih dahulu. Hasilnya digunakan langsung sebagai *initial upper bound* untuk algoritma Branch and Bound.
 
 #### Karakteristik
 
 - Pendekatan konstruktif (*constructive scheduling*)
-- Kompleksitas relatif rendah
-- Runtime cepat
+- Kompleksitas rendah, runtime sangat cepat
 - Tidak menjamin solusi optimal
 
 ---
 
-### 2. Branch and Bound
+### 2. Branch and Bound — Best-First Search dengan Conflict-Based Branching
 
-Branch and Bound membentuk *state-space tree* yang merepresentasikan berbagai kemungkinan penjadwalan.
+Branch and Bound membentuk *state-space tree* yang merepresentasikan berbagai kemungkinan penjadwalan. Eksplorasi dilakukan dengan strategi *Best-First Search* — node dengan *lower bound* terkecil selalu dieksplorasi lebih dulu.
 
-Setiap node merepresentasikan *partial schedule*. Untuk setiap node dihitung nilai *lower bound* sebagai estimasi makespan minimum yang masih mungkin dicapai dari state tersebut.
+#### State
 
-Jika *lower bound* suatu node lebih buruk daripada solusi terbaik yang telah ditemukan, maka subtree tersebut dipangkas (*pruned*) sehingga tidak perlu dieksplorasi lebih lanjut.
+Setiap node dalam pohon pencarian direpresentasikan sebagai `State` yang menyimpan:
+
+- `jobProgress` — indeks operasi berikutnya tiap job
+- `jobReadyTime` — waktu job bisa mulai operasi berikutnya
+- `machineReadyTime` — waktu mesin selesai dan siap dipakai
+- `currentMakespan` — makespan aktual sampai titik ini
+- `lowerBound` — estimasi makespan minimum dari titik ini
+- `schedule` — daftar operasi yang sudah dijadwalkan
+
+#### Lower Bound
+
+Untuk setiap node dihitung *lower bound* menggunakan dua komponen yang digabung dengan `max`:
+
+**Job Bound** — untuk setiap job, jumlahkan sisa *processing time* dari operasi yang belum dijadwalkan ditambah waktu job tersebut sudah siap:
+
+```text
+JobBound(j) = jobReadyTime[j] + Σ processingTime(op yang belum selesai di job j)
+```
+
+**Machine Load Bound** — untuk setiap mesin, jumlahkan sisa beban kerja dari semua operasi yang belum dijadwalkan di mesin tersebut, ditambah waktu mesin tersebut sudah siap:
+
+```text
+MachineBound(m) = machineReadyTime[m] + Σ processingTime(semua op sisa yang butuh mesin m)
+```
+
+Nilai *lower bound* akhir:
+
+```text
+LB = max(currentMakespan, max(JobBound), max(MachineBound))
+```
+
+#### Conflict-Based Branching
+
+Branching tidak dilakukan per-job, melainkan per *conflict machine* — mesin yang paling banyak diperebutkan oleh job-job yang siap dijadwalkan.
+
+Langkah-langkah `generateChildren`:
+
+1. Kumpulkan semua operasi yang *ready* (next operation tiap job yang belum selesai)
+2. Hitung berapa job yang bersaing di tiap mesin (*conflict count*)
+3. Pilih *conflict machine* — mesin dengan conflict count terbesar; jika seri, pilih mesin dengan sisa beban terbesar sebagai tie-breaker
+4. Untuk setiap job yang bersaing di conflict machine tersebut, buat satu child: job itu dijadwalkan duluan, operasi lain yang tidak berkonflik langsung dijadwalkan di child yang sama
+
+Jumlah child per node = jumlah job yang bersaing di conflict machine (umumnya 2–5), jauh lebih kecil dibanding pendekatan per-job konvensional.
+
+#### Pruning
+
+Node dipruning jika *lower bound*-nya **lebih besar** dari `bestMakespan` saat ini:
+
+```text
+if (lowerBound > bestMakespan) → pruning
+```
+
+Kondisi menggunakan `>` (bukan `>=`) agar state dengan `lowerBound == bestMakespan` tetap dieksplorasi sebagai kandidat solusi valid.
+
+#### Batas Eksplorasi
+
+Untuk mencegah *hang* pada instance besar, eksplorasi dibatasi oleh:
+
+- **Node limit**: 2.000.000 node
+- **Time limit**: 60 detik
+
+Jika salah satu batas tercapai, dikembalikan solusi *best-so-far* dengan flag `isOptimal = false`.
 
 #### Karakteristik
 
-- Exact optimization algorithm
-- Menjamin solusi optimal jika pencarian selesai
-- Menggunakan teknik pruning
+- *Exact optimization* — menjamin solusi optimal jika eksplorasi selesai
+- *Upper bound* awal dari greedy membuat pruning lebih agresif
+- Conflict-based branching menghasilkan pohon pencarian yang jauh lebih sempit
 - Kompleksitas eksponensial pada kasus terburuk
 
 ---
@@ -71,21 +130,24 @@ Jika *lower bound* suatu node lebih buruk daripada solusi terbaik yang telah dit
 
 Dataset yang digunakan adalah benchmark **Lawrence (LA)** untuk Job Shop Scheduling Problem.
 
+Link Dataset: https://github.com/tamy0612/JSPLIB/tree/master  
+Link Penting Terkait Dataset: https://jsp-instance-utils.readthedocs.io/en/latest/
+
 ### Dataset yang Digunakan
 
 | Dataset | Jobs | Machines | Optimum |
-|----------|------|-----------|----------|
-| LA01 | 10 | 5 | 666 |
-| LA06 | 15 | 5 | 926 |
-| LA16 | 10 | 10 | 945 |
+|---------|------|----------|---------|
+| LA01    | 10   | 5        | 666     |
+| LA06    | 15   | 5        | 926     |
+| LA16    | 10   | 10       | 945     |
 
-Format dataset:
+### Format Dataset
 
 ```text
 Machine ProcessingTime Machine ProcessingTime ...
 ```
 
-Contoh:
+Contoh baris pertama LA01:
 
 ```text
 1 21 0 53 4 95 3 55 2 34
@@ -94,19 +156,38 @@ Contoh:
 Interpretasi:
 
 | Operasi | Mesin | Waktu Proses |
-|----------|--------|-------------|
-| O1 | M1 | 21 |
-| O2 | M0 | 53 |
-| O3 | M4 | 95 |
-| O4 | M3 | 55 |
-| O5 | M2 | 34 |
+|---------|-------|-------------|
+| O1      | M1    | 21          |
+| O2      | M0    | 53          |
+| O3      | M4    | 95          |
+| O4      | M3    | 55          |
+| O5      | M2    | 34          |
 
-Setiap baris merepresentasikan satu *job*, sedangkan setiap pasangan angka menunjukkan:
+Setiap baris merepresentasikan satu *job*. Setiap pasangan angka menunjukkan Machine ID dan Processing Time sesuai urutan operasi yang wajib dikerjakan.
 
-- Machine ID
-- Processing Time
+---
 
-Urutan pasangan menunjukkan urutan operasi yang wajib dikerjakan.
+## Struktur Program
+
+```
+.
+├── datasets/
+│   ├── la01.txt
+│   ├── la06.txt
+│   └── la16.txt
+├── include/
+│   ├── common.hpp       # struct ScheduledOperation, library includes
+│   ├── dataset.hpp      # struct Operation, Job, Dataset
+│   ├── greedy.hpp       # class GreedyScheduler
+│   ├── bnb.hpp          # struct State, Node, BnBResult, class BranchAndBoundScheduler
+│   └── visualizer.hpp   # class GanttVisualizer
+├── src/
+│   ├── dataset.cpp
+│   ├── greedy.cpp
+│   ├── bnb.cpp
+│   └── visualizer.cpp
+└── main.cpp
+```
 
 ---
 
@@ -114,15 +195,13 @@ Urutan pasangan menunjukkan urutan operasi yang wajib dikerjakan.
 
 Untuk setiap dataset:
 
-1. Jalankan algoritma Greedy Critical Path Priority.
-2. Jalankan algoritma Branch and Bound.
-3. Catat hasil:
-   - Makespan
-   - Runtime (ms)
-   - Jumlah node yang dieksplorasi
-   - Persentase gap terhadap nilai optimum
+1. Load dataset dari file benchmark Lawrence.
+2. Jalankan algoritma **Greedy MWR**, catat makespan dan runtime.
+3. Gunakan makespan dan jadwal greedy sebagai *initial upper bound* untuk Branch and Bound.
+4. Jalankan algoritma **Branch and Bound**, catat makespan, runtime, jumlah node dieksplorasi, jumlah node dipruning, dan status optimalitas.
+5. Hitung *optimality gap* terhadap nilai optimum benchmark.
 
-Gap dihitung menggunakan:
+*Gap* dihitung menggunakan:
 
 ```text
 Gap(%) = ((Makespan - Optimum) / Optimum) × 100
@@ -134,32 +213,36 @@ Gap(%) = ((Makespan - Optimum) / Optimum) × 100
 
 ### 1. Makespan
 
-Waktu penyelesaian seluruh job.
+Waktu penyelesaian seluruh job — semakin kecil semakin baik:
 
 ```text
 Cmax = max completion time across all jobs
 ```
 
-Semakin kecil makespan, semakin baik kualitas solusi.
-
 ### 2. Runtime
 
-Waktu yang diperlukan algoritma untuk menghasilkan solusi.
+Waktu komputasi algoritma dalam milidetik (ms).
 
-### 3. Expanded Nodes
+### 3. Nodes Explored / Pruned
 
-Jumlah state/node yang dieksplorasi selama proses pencarian.
+Khusus Branch and Bound — jumlah node yang dieksplorasi dan dipangkas selama pencarian. Rasio pruning yang tinggi menunjukkan *lower bound* yang efektif.
 
 ### 4. Optimality Gap
 
-Selisih hasil algoritma terhadap nilai optimum benchmark.
+Selisih makespan hasil algoritma terhadap nilai optimum benchmark:
+
+```text
+Gap(%) = ((Makespan - Optimum) / Optimum) × 100
+```
+
+Gap = 0% berarti solusi optimal tercapai.
 
 ---
 
 ## Hasil yang Diharapkan
 
-Diharapkan algoritma **Greedy Critical Path Priority** mampu menghasilkan solusi dengan runtime yang sangat cepat namun kualitas solusi sedikit lebih rendah dibandingkan optimum.
+Algoritma **Greedy MWR** diharapkan menghasilkan solusi dengan runtime mendekati nol namun dengan *optimality gap* yang cukup signifikan, karena keputusan greedy bersifat lokal dan tidak mempertimbangkan dampak global terhadap makespan.
 
-Sebaliknya, algoritma **Branch and Bound** diharapkan mampu menghasilkan solusi yang lebih baik atau optimal melalui eksplorasi ruang solusi yang lebih luas, meskipun membutuhkan waktu komputasi yang jauh lebih besar.
+Algoritma **Branch and Bound** diharapkan menghasilkan solusi yang lebih baik atau mendekati optimal melalui eksplorasi ruang solusi yang sistematis, dengan trade-off berupa waktu komputasi yang jauh lebih besar. Penggunaan solusi greedy sebagai *initial upper bound* dan strategi *conflict-based branching* diharapkan menekan jumlah node yang perlu dieksplorasi secara signifikan.
 
-Penelitian ini bertujuan menunjukkan trade-off antara kualitas solusi dan biaya komputasi dalam penyelesaian Job Shop Scheduling Problem menggunakan dua pendekatan algoritmik yang memiliki karakteristik dan kompleksitas yang berbeda.
+Penelitian ini bertujuan menunjukkan trade-off antara kualitas solusi dan biaya komputasi dalam penyelesaian JSSP menggunakan dua pendekatan algoritmik dengan karakteristik dan kompleksitas yang berbeda.
