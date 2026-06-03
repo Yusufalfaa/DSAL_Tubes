@@ -2,13 +2,14 @@
 #define COMMON_HPP
 
 #include <iostream>
-#include <vector>
 #include <string>
 #include <fstream>
 #include <sstream>
+#include <stack>
 
 #include <queue>
-#include <stack>
+#include <vector>
+#include <climits>
 #include <algorithm>
 
 #include <chrono>

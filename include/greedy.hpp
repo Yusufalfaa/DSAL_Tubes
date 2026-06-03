@@ -4,6 +4,11 @@
 #include "common.hpp"
 #include "dataset.hpp"
 
+// =====================
+// Class: BranchAndBoundScheduler
+// Deskripsi: Menyelesaikan Job Shop Scheduling Problem (JSSP) menggunakan
+//            algoritma Greedy Priority Scheduling based on Most Work Remaining (MWR).
+// =====================
 class GreedyScheduler {
 public:
     int solve(const Dataset& data);
