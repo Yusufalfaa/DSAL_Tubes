@@ -2,9 +2,10 @@
 
 // =====================
 // Fungsi: calculateRemainingWork
-// Deskripsi: Menghitung total sisa processing time dari sebuah job mulai dari operasi tertentu
-// Input: Dataset, jobId, nextOp index
-// Output: total remaining processing time (int)
+// Menghitung total processing time operasi yang belum dikerjakan.
+//
+// Time Complexity: O(O)
+// O = jumlah operasi per job
 // =====================
 int GreedyScheduler::calculateRemainingWork(
     const Dataset& data,
@@ -15,6 +16,8 @@ int GreedyScheduler::calculateRemainingWork(
 
     const Job& job = data.jobs[jobId];
 
+    // Loop sisa operasi
+    // O(O)
     for (size_t i = nextOp; i < job.operations.size(); i++) {
         remainingWork += job.operations[i].processingTime;
     }
@@ -24,14 +27,17 @@ int GreedyScheduler::calculateRemainingWork(
 
 // =====================
 // Fungsi: allJobsFinished
-// Deskripsi: Mengecek apakah semua job sudah menyelesaikan seluruh operasinya
-// Input: Dataset, vector nextOperation
-// Output: true jika semua job selesai, false jika masih ada yang belum selesai
+// Mengecek apakah semua job telah selesai.
+//
+// Time Complexity: O(J)
+// J = jumlah job
 // =====================
 bool GreedyScheduler::allJobsFinished(
     const Dataset& data,
     const vector<int>& nextOperation
 ) {
+    // Loop seluruh job
+    // O(J)
     for (int jobId = 0; jobId < data.numJobs; jobId++) {
         if ((size_t) nextOperation[jobId] < data.jobs[jobId].operations.size()) {
             return false;
@@ -43,9 +49,9 @@ bool GreedyScheduler::allJobsFinished(
 
 // =====================
 // Fungsi: getSchedule
-// Deskripsi: Mengembalikan hasil jadwal operasi yang sudah disusun oleh greedy
-// Input: tidak ada
-// Output: vector berisi seluruh ScheduledOperation
+// Mengembalikan hasil penjadwalan.
+//
+// Time Complexity: O(1)
 // =====================
 const vector<ScheduledOperation>& GreedyScheduler::getSchedule() const {
     return schedule;
@@ -53,9 +59,11 @@ const vector<ScheduledOperation>& GreedyScheduler::getSchedule() const {
 
 // =====================
 // Fungsi: solve
-// Deskripsi: Menjalankan algoritma Greedy MWR untuk menyusun jadwal JSSP
-// Input: Dataset berisi job dan machine
-// Output: makespan (total waktu penyelesaian seluruh job)
+// Menyusun jadwal menggunakan Greedy MWR.
+//
+// Time Complexity: O(J × O × (J + O))
+// J = jumlah job
+// O = jumlah operasi per job
 // =====================
 int GreedyScheduler::solve(const Dataset& data) {
 
@@ -65,11 +73,16 @@ int GreedyScheduler::solve(const Dataset& data) {
     vector<int> jobReadyTime(data.numJobs, 0);
     vector<int> machineReadyTime(data.numMachines, 0);
 
+    // Loop seluruh operasi
+    // O(J × O)
     while (!allJobsFinished(data, nextOperation)) {
 
         int selectedJob = -1;
         int bestRemainingWork = -1;
 
+        // Loop seluruh job
+        // O(J × O)
+        // (O(J) × calculateRemainingWork O(O))
         for (int jobId = 0; jobId < data.numJobs; jobId++) {
 
             int nextOp = nextOperation[jobId];
@@ -107,12 +120,16 @@ int GreedyScheduler::solve(const Dataset& data) {
             endTime
         });
 
+        // Update waktu
         jobReadyTime[selectedJob] = endTime;
         machineReadyTime[op.machine] = endTime;
         nextOperation[selectedJob]++;
     }
 
     int makespan = 0;
+
+    // Loop seluruh jadwal
+    // O(J × O)
     for (const auto& s : schedule) {
         if (s.endTime > makespan)
             makespan = s.endTime;

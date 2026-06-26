@@ -9,9 +9,10 @@ int main() {
 
     Dataset data;
     string datasetName = "la16";
+    string path = "datasets/" + datasetName + ".txt";
 
     // Load Dataset
-    if (!data.load("../datasets/"+datasetName+".txt")) {
+    if (!data.load(path)) {
         cout << "Failed to load dataset\n";
         return 1;
     }

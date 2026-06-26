@@ -2,17 +2,12 @@
 
 // =====================
 // Fungsi: computeLowerBound
-// Deskripsi: Menghitung batas bawah (lower bound) makespan dari suatu state
-//            menggunakan kombinasi tiga komponen:
-//            (1) makespan saat ini sebagai baseline,
-//            (2) job bound — untuk tiap job, jumlahkan sisa processing time dari operasi
-//                yang belum dijadwalkan ditambah waktu job itu sudah siap,
-//            (3) machine load bound — untuk tiap mesin, jumlahkan sisa beban kerja
-//                dari semua operasi yang belum dijadwalkan di mesin tersebut,
-//                lalu tambahkan dengan waktu mesin itu sudah siap.
-//            Nilai lower bound adalah maksimum dari ketiga komponen tersebut.
-// Input:  State saat ini, Dataset JSSP
-// Output: Nilai lower bound makespan minimum yang mungkin dicapai dari state tersebut
+// Menghitung lower bound suatu state.
+//
+// Time Complexity: O(J × O + M)
+// J = jumlah job
+// O = jumlah operasi per job
+// M = jumlah machine
 // =====================
 int BranchAndBoundScheduler::computeLowerBound(
     const State&   state,
@@ -23,12 +18,13 @@ int BranchAndBoundScheduler::computeLowerBound(
     int nJobs     = data.numJobs;
     int nMachines = data.numMachines;
 
-    // -------------------------
-    // 1. JOB BOUND
-    // -------------------------
+    // Job bound
+    // O(J × O)
     for (int j = 0; j < nJobs; j++) {
         int time = state.jobReadyTime[j];
 
+        // Loop sisa operasi
+        // O(O)
         for (int op = state.jobProgress[j]; op < (int)data.jobs[j].operations.size(); op++) {
             time += data.jobs[j].operations[op].processingTime;
         }
@@ -36,18 +32,23 @@ int BranchAndBoundScheduler::computeLowerBound(
         lb = max(lb, time);
     }
 
-    // -------------------------
-    // 2. MACHINE LOAD BOUND
-    // -------------------------
+    // Machine load
     vector<int> machineLoad(nMachines, 0);
 
+    // Loop seluruh job
+    // O(J × O)
     for (int j = 0; j < nJobs; j++) {
+
+        // Loop sisa operasi
+        // O(O)
         for (int op = state.jobProgress[j]; op < (int)data.jobs[j].operations.size(); op++) {
             int m = data.jobs[j].operations[op].machine;
             machineLoad[m] += data.jobs[j].operations[op].processingTime;
         }
     }
 
+    // Loop seluruh machine
+    // O(M)
     for (int m = 0; m < nMachines; m++) {
         lb = max(lb, state.machineReadyTime[m] + machineLoad[m]);
     }
@@ -57,26 +58,30 @@ int BranchAndBoundScheduler::computeLowerBound(
 
 // =====================
 // Fungsi: allJobsFinished
-// Deskripsi: Mengecek apakah semua job sudah menyelesaikan seluruh operasinya
-//            dengan membandingkan jobProgress tiap job terhadap jumlah operasi yang dimiliki.
-// Input:  Dataset, vector jobProgress
-// Output: true jika semua job selesai, false jika masih ada yang belum selesai
+// Mengecek apakah semua job telah selesai.
+//
+// Time Complexity: O(J)
+// J = jumlah job
 // =====================
 bool allJobsFinished(const Dataset& data, const vector<int>& jobProgress) {
+
+    // Loop seluruh job
+    // O(J)
     for (int j = 0; j < data.numJobs; j++) {
         if (jobProgress[j] < (int)data.jobs[j].operations.size()) {
             return false;
         }
     }
+
     return true;
 }
 
 // =====================
 // Fungsi: isComplete
-// Deskripsi: Mengecek apakah state sudah merupakan solusi lengkap (semua job selesai).
-//            Wrapper tipis di atas allJobsFinished agar konsisten dengan antarmuka class.
-// Input:  State, Dataset
-// Output: true jika semua job selesai diproses, false jika masih ada operasi tersisa
+// Mengecek apakah semua job telah selesai.
+//
+// Time Complexity: O(J)
+// J = jumlah job
 // =====================
 bool BranchAndBoundScheduler::isComplete(
     const State&   state,
@@ -87,27 +92,18 @@ bool BranchAndBoundScheduler::isComplete(
 
 // =====================
 // Fungsi: generateChildren
-// Deskripsi: Membentuk state anak menggunakan conflict-based branching — pendekatan
-//            standar BnB untuk JSSP yang menjamin ruang pencarian lengkap dan sempit.
+// Deskripsi: Membentuk state anak menggunakan conflict-based branching.
 //
-//            Cara kerja:
-//            (1) Kumpulkan semua operasi yang ready (next operation tiap job).
-//            (2) Cari "conflict machine" — mesin yang paling banyak diperebutkan,
-//                diukur dari jumlah job ready yang membutuhkannya. Jika ada seri,
-//                pilih mesin dengan beban kerja sisa terbesar sebagai tie-breaker
-//                agar pruning lebih agresif di cabang yang paling berat.
-//            (3) Untuk setiap job yang ready di conflict machine tersebut, buat
-//                satu child: job itu dijadwalkan duluan di mesin itu, sementara
-//                job-job lain yang juga butuh mesin itu harus menunggu sampai
-//                job ini selesai (machineReadyTime di-update ke endTime job terpilih).
+// Langkah:
+// (1) Kumpulkan seluruh operasi yang ready.
+// (2) Hitung conflict tiap machine dan remaining load.
+// (3) Pilih conflict machine.
+// (4) Generate child dari setiap kandidat pada conflict machine.
 //
-//            Dengan cara ini jumlah child per node = jumlah job yang bersaing di
-//            conflict machine (biasanya 2–5), bukan semua job ready. Pohon pencarian
-//            jauh lebih sempit sehingga pruning bekerja efektif.
-//
-// Input:  State saat ini, Dataset JSSP
-// Output: vector state anak yang merepresentasikan semua kemungkinan urutan
-//         job di conflict machine
+// Time Complexity: O(J × O + J² + M)
+// J = jumlah job
+// O = jumlah operasi per job
+// M = jumlah machine
 // =====================
 vector<State> BranchAndBoundScheduler::generateChildren(
     const State&   state,
@@ -119,7 +115,8 @@ vector<State> BranchAndBoundScheduler::generateChildren(
     int nMachines = data.numMachines;
 
     // -------------------------
-    // Langkah 1: Kumpulkan semua operasi ready (next op tiap job yang belum selesai)
+    // Langkah 1: Kumpulkan operasi ready
+    // Time Complexity: O(J)
     // -------------------------
     struct ReadyOp {
         int jobId;
@@ -132,74 +129,105 @@ vector<State> BranchAndBoundScheduler::generateChildren(
     vector<ReadyOp> readyOps;
     readyOps.reserve(nJobs);
 
+    // Loop seluruh job
+    // O(J)
     for (int j = 0; j < nJobs; j++) {
         int opIdx = state.jobProgress[j];
+
         if (opIdx < (int)data.jobs[j].operations.size()) {
             const Operation& op = data.jobs[j].operations[opIdx];
-            int est = max(state.jobReadyTime[j], state.machineReadyTime[op.machine]);
-            readyOps.push_back({j, opIdx, op.machine, op.processingTime, est});
+
+            int est = max(state.jobReadyTime[j],
+                          state.machineReadyTime[op.machine]);
+
+            readyOps.push_back({
+                j,
+                opIdx,
+                op.machine,
+                op.processingTime,
+                est
+            });
         }
     }
 
-    if (readyOps.empty()) return children;
+    if (readyOps.empty())
+        return children;
 
     // -------------------------
-    // Langkah 2: Hitung berapa job yang ready di tiap mesin (conflict count),
-    //            dan hitung sisa beban tiap mesin untuk tie-breaker.
+    // Langkah 2: Hitung conflict dan remaining load
+    // Time Complexity: O(J × O)
     // -------------------------
     vector<int> conflictCount(nMachines, 0);
     vector<int> machineRemainingLoad(nMachines, 0);
 
+    // Hitung conflict tiap machine
+    // O(J)
     for (const ReadyOp& rop : readyOps) {
         conflictCount[rop.machine]++;
     }
 
-    // sisa beban mesin dari SEMUA operasi yang belum dijadwalkan
+    // Hitung remaining load
+    // O(J × O)
     for (int j = 0; j < nJobs; j++) {
-        for (int op = state.jobProgress[j]; op < (int)data.jobs[j].operations.size(); op++) {
+
+        // Loop sisa operasi
+        // O(O)
+        for (int op = state.jobProgress[j];
+             op < (int)data.jobs[j].operations.size();
+             op++) {
+
             int m = data.jobs[j].operations[op].machine;
-            machineRemainingLoad[m] += data.jobs[j].operations[op].processingTime;
+            machineRemainingLoad[m] +=
+                data.jobs[j].operations[op].processingTime;
         }
     }
 
     // -------------------------
-    // Langkah 3: Pilih conflict machine — mesin dengan paling banyak job ready,
-    //            tie-break ke mesin dengan sisa beban terbesar.
+    // Langkah 3: Pilih conflict machine
+    // Time Complexity: O(M)
     // -------------------------
     int conflictMachine = -1;
-    int maxConflict     = 0;
-    int maxLoad         = -1;
+    int maxConflict = 0;
+    int maxLoad = -1;
 
+    // Loop seluruh machine
+    // O(M)
     for (int m = 0; m < nMachines; m++) {
+
         if (conflictCount[m] > maxConflict ||
-           (conflictCount[m] == maxConflict && machineRemainingLoad[m] > maxLoad)) {
-            maxConflict     = conflictCount[m];
-            maxLoad         = machineRemainingLoad[m];
+           (conflictCount[m] == maxConflict &&
+            machineRemainingLoad[m] > maxLoad)) {
+
+            maxConflict = conflictCount[m];
+            maxLoad = machineRemainingLoad[m];
             conflictMachine = m;
         }
     }
 
-    // Jika tidak ada mesin dengan konflik (semua mesin hanya dipakai 1 job),
-    // jalankan semua operasi ready sekaligus sebagai satu child deterministik
-    // karena tidak ada keputusan sekuensing yang perlu dibuat.
+    // Tidak ada konflik
     if (maxConflict <= 1) {
+
         State child = state;
 
+        // Loop seluruh ready operation
+        // O(J)
         for (const ReadyOp& rop : readyOps) {
+
             int startTime = rop.earliestStart;
-            int endTime   = startTime + rop.processingTime;
+            int endTime = startTime + rop.processingTime;
 
             child.jobProgress[rop.jobId]++;
-            child.jobReadyTime[rop.jobId]       = endTime;
-            child.machineReadyTime[rop.machine]  = endTime;
-            child.currentMakespan = max(child.currentMakespan, endTime);
+            child.jobReadyTime[rop.jobId] = endTime;
+            child.machineReadyTime[rop.machine] = endTime;
+            child.currentMakespan =
+                max(child.currentMakespan, endTime);
 
             ScheduledOperation sched;
-            sched.jobId          = rop.jobId;
+            sched.jobId = rop.jobId;
             sched.operationIndex = rop.opIdx;
-            sched.machine        = rop.machine;
-            sched.startTime      = startTime;
-            sched.endTime        = endTime;
+            sched.machine = rop.machine;
+            sched.startTime = startTime;
+            sched.endTime = endTime;
 
             child.schedule.push_back(sched);
         }
@@ -209,55 +237,66 @@ vector<State> BranchAndBoundScheduler::generateChildren(
     }
 
     // -------------------------
-    // Langkah 4: Branch — untuk setiap job yang ready di conflictMachine,
-    //            buat satu child di mana job itu dijadwalkan duluan.
-    //            Job lain yang juga butuh conflictMachine harus menunggu
-    //            sampai job terpilih selesai di mesin tersebut.
+    // Langkah 4: Generate child
+    // Time Complexity: O(J²)
     // -------------------------
+
+    // Loop kandidat pada conflict machine
+    // O(J²)
     for (const ReadyOp& chosen : readyOps) {
-        if (chosen.machine != conflictMachine) continue;
+
+        if (chosen.machine != conflictMachine)
+            continue;
 
         State child = state;
 
-        // Jadwalkan chosen job duluan di conflictMachine
         int startTime = chosen.earliestStart;
-        int endTime   = startTime + chosen.processingTime;
+        int endTime = startTime + chosen.processingTime;
 
         child.jobProgress[chosen.jobId]++;
-        child.jobReadyTime[chosen.jobId]          = endTime;
-        child.machineReadyTime[conflictMachine]    = endTime;
-        child.currentMakespan = max(child.currentMakespan, endTime);
+        child.jobReadyTime[chosen.jobId] = endTime;
+        child.machineReadyTime[conflictMachine] = endTime;
+        child.currentMakespan =
+            max(child.currentMakespan, endTime);
 
         ScheduledOperation sched;
-        sched.jobId          = chosen.jobId;
+        sched.jobId = chosen.jobId;
         sched.operationIndex = chosen.opIdx;
-        sched.machine        = conflictMachine;
-        sched.startTime      = startTime;
-        sched.endTime        = endTime;
+        sched.machine = conflictMachine;
+        sched.startTime = startTime;
+        sched.endTime = endTime;
 
         child.schedule.push_back(sched);
 
-        // Jadwalkan semua operasi ready lainnya yang TIDAK berkonflik di conflictMachine
-        // (mesinnya berbeda dari conflictMachine) — tidak ada keputusan sekuensing di sini
+        // Jadwalkan operasi ready lain
+        // O(J)
         for (const ReadyOp& other : readyOps) {
-            if (other.jobId == chosen.jobId)      continue;
-            if (other.machine == conflictMachine)  continue;
 
-            int otherStart = max(child.jobReadyTime[other.jobId],
-                                 child.machineReadyTime[other.machine]);
-            int otherEnd   = otherStart + other.processingTime;
+            if (other.jobId == chosen.jobId)
+                continue;
+
+            if (other.machine == conflictMachine)
+                continue;
+
+            int otherStart =
+                max(child.jobReadyTime[other.jobId],
+                    child.machineReadyTime[other.machine]);
+
+            int otherEnd =
+                otherStart + other.processingTime;
 
             child.jobProgress[other.jobId]++;
-            child.jobReadyTime[other.jobId]      = otherEnd;
+            child.jobReadyTime[other.jobId] = otherEnd;
             child.machineReadyTime[other.machine] = otherEnd;
-            child.currentMakespan = max(child.currentMakespan, otherEnd);
+            child.currentMakespan =
+                max(child.currentMakespan, otherEnd);
 
             ScheduledOperation otherSched;
-            otherSched.jobId          = other.jobId;
+            otherSched.jobId = other.jobId;
             otherSched.operationIndex = other.opIdx;
-            otherSched.machine        = other.machine;
-            otherSched.startTime      = otherStart;
-            otherSched.endTime        = otherEnd;
+            otherSched.machine = other.machine;
+            otherSched.startTime = otherStart;
+            otherSched.endTime = otherEnd;
 
             child.schedule.push_back(otherSched);
         }
@@ -270,10 +309,9 @@ vector<State> BranchAndBoundScheduler::generateChildren(
 
 // =====================
 // Fungsi: getSchedule
-// Deskripsi: Mengembalikan jadwal terbaik yang ditemukan setelah proses solve selesai.
-//            Digunakan untuk mengakses hasil dari luar class tanpa mengekspos state internal.
-// Input:  -
-// Output: Reference ke vector ScheduledOperation terbaik
+// Mengembalikan jadwal terbaik.
+//
+// Time Complexity: O(1)
 // =====================
 const vector<ScheduledOperation>& BranchAndBoundScheduler::getSchedule() const {
     return bestSchedule;
@@ -281,22 +319,22 @@ const vector<ScheduledOperation>& BranchAndBoundScheduler::getSchedule() const {
 
 // =====================
 // Fungsi: solve
-// Deskripsi: Menyelesaikan JSSP menggunakan Best-First Branch and Bound
-//            dengan initial upper bound dari luar (misalnya hasil greedy).
+// Deskripsi: Menyelesaikan JSSP menggunakan Best-First Branch and Bound.
 //
-//            Alur utama:
-//            (1) Inisialisasi root state dan masukkan ke priority queue.
-//            (2) Tiap iterasi ambil node dengan lower bound terkecil (Best-First).
-//            (3) Pruning: buang node jika lower bound-nya LEBIH BESAR dari bestMakespan
-//                (bukan >=, agar solusi dengan makespan sama tidak ikut terpotong).
-//            (4) Jika state lengkap dan makespannya lebih baik, update best.
-//            (5) Jika belum lengkap, expand dengan generateChildren dan hitung
-//                lower bound tiap child sebelum dimasukkan ke PQ.
-//            (6) Eksplorasi dihentikan lebih awal jika node limit atau time limit tercapai;
-//                hasil yang dikembalikan adalah best-so-far dengan flag isOptimal = false.
+// Langkah:
+// (1) Inisialisasi root state.
+// (2) Ambil node dengan lower bound terkecil.
+// (3) Lakukan pruning.
+// (4) Update solusi jika state lengkap.
+// (5) Generate child dan hitung lower bound.
+// (6) Berhenti jika mencapai node/time limit.
 //
-// Input:  Dataset, initial makespan greedy, initial schedule greedy
-// Output: BnBResult berisi solusi terbaik dan statistik eksplorasi
+// Time Complexity: O(N × J × (J × O + M))
+//
+// N = jumlah node yang dieksplorasi
+// J = jumlah job
+// O = jumlah operasi per job
+// M = jumlah machine
 // =====================
 BnBResult BranchAndBoundScheduler::solve(
     const Dataset&                    data,
@@ -311,42 +349,45 @@ BnBResult BranchAndBoundScheduler::solve(
 
     PQ pq;
 
-    // ROOT state
+    // Inisialisasi root
+    // O(J × O + M)
     State root(data.numJobs, data.numMachines);
     root.lowerBound = computeLowerBound(root, data);
     pq.push(Node(root, 0));
 
-    // Catat waktu mulai untuk time limit
     auto startTime = chrono::steady_clock::now();
     bool hitLimit  = false;
 
+    // Eksplorasi seluruh node
+    // Total: O(N × J × (J × O + M))
     while (!pq.empty()) {
 
         // -------------------------
-        // CEK BATAS EKSPLORASI
+        // Cek batas eksplorasi
+        // O(1)
         // -------------------------
         if (nodesExplored >= NODE_LIMIT) {
             hitLimit = true;
             break;
         }
 
-        auto now    = chrono::steady_clock::now();
+        auto now = chrono::steady_clock::now();
         int elapsed = (int)chrono::duration_cast<chrono::seconds>(now - startTime).count();
+
         if (elapsed >= TIME_LIMIT_SECONDS) {
             hitLimit = true;
             break;
         }
 
-        Node  currentNode = pq.top();
+        Node currentNode = pq.top();
         pq.pop();
 
         State current = currentNode.state;
         nodesExplored++;
 
         // -------------------------
-        // PRUNING
-        // Gunakan > bukan >= agar state dengan lowerBound == bestMakespan
-        // tetap dieksplorasi; bisa jadi solusi valid dengan makespan sama.
+        // Pruning
+        // O(1)
         // -------------------------
         if (current.lowerBound > bestMakespan) {
             nodesPruned++;
@@ -354,7 +395,8 @@ BnBResult BranchAndBoundScheduler::solve(
         }
 
         // -------------------------
-        // COMPLETE STATE
+        // Complete state
+        // O(J)
         // -------------------------
         if (isComplete(current, data)) {
             if (current.currentMakespan < bestMakespan) {
@@ -365,14 +407,21 @@ BnBResult BranchAndBoundScheduler::solve(
         }
 
         // -------------------------
-        // EXPAND
+        // Generate child
+        // O(J × O + J² + M)
         // -------------------------
         vector<State> children = generateChildren(current, data);
 
+        // Evaluasi seluruh child
+        // O(J × (J × O + M))
         for (State& child : children) {
+
+            // Hitung lower bound
+            // O(J × O + M)
             child.lowerBound = computeLowerBound(child, data);
 
-            // Pruning awal child sebelum masuk PQ
+            // Pruning awal
+            // O(1)
             if (child.lowerBound > bestMakespan) {
                 nodesPruned++;
                 continue;

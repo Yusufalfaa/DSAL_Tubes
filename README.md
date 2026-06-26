@@ -3,6 +3,61 @@
 Nama  : Muhamad Yusuf Al Farizzi  
 NIM   : 2030212520052
 
+## Instruksi Menjalankan Program
+
+### 1. Build Program
+
+1. Buka file `main.cpp`.
+2. Tekan **Ctrl + Shift + B** untuk melakukan proses build.
+3. Jika build berhasil, jalankan program melalui terminal:
+
+```bash
+.\output\main.exe
+```
+
+> Pastikan terminal berada pada root folder project.
+
+---
+
+### 2. Mengganti Dataset
+
+Dataset yang digunakan dapat diubah melalui `main.cpp`.
+
+Ubah bagian berikut:
+
+```cpp
+Dataset data;
+string datasetName = "la01";
+string path = "datasets/" + datasetName + ".txt";
+```
+
+Sesuaikan nilai `datasetName` dengan nama file yang tersedia pada folder `datasets/`.
+
+Contoh:
+
+```cpp
+datasetName = "la01";
+datasetName = "la06";
+datasetName = "la16";
+```
+
+Folder dataset:
+
+```text
+datasets/
+├── la01.txt
+├── la06.txt
+└── la16.txt
+```
+
+Setelah mengganti dataset, lakukan **build ulang** (`Ctrl + Shift + B`) kemudian jalankan kembali:
+
+```bash
+.\output\main.exe
+```
+
+---
+
 ## Deskripsi Permasalahan
 
 Job Shop Scheduling Problem (JSSP) merupakan salah satu permasalahan optimasi kombinatorial yang bertujuan menentukan jadwal pelaksanaan sejumlah operasi pada beberapa mesin sehingga total waktu penyelesaian seluruh pekerjaan (*makespan*) menjadi minimum.
