@@ -61,7 +61,7 @@ const vector<ScheduledOperation>& GreedyScheduler::getSchedule() const {
 // Fungsi: solve
 // Menyusun jadwal menggunakan Greedy MWR.
 //
-// Time Complexity: O(J × O × (J + O))
+// Time Complexity: O(J² × O²)
 // J = jumlah job
 // O = jumlah operasi per job
 // =====================

@@ -329,7 +329,7 @@ const vector<ScheduledOperation>& BranchAndBoundScheduler::getSchedule() const {
 // (5) Generate child dan hitung lower bound.
 // (6) Berhenti jika mencapai node/time limit.
 //
-// Time Complexity: O(N × J × (J × O + M))
+// Time Complexity: O(N × (J² × O + J × M + log N))
 //
 // N = jumlah node yang dieksplorasi
 // J = jumlah job
